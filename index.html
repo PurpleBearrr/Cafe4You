@@ -1,4 +1,3 @@
-```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -76,6 +75,12 @@
       font-size: 24px;
       font-weight: bold;
     }
+
+    #message {
+      text-align: center;
+      color: #666;
+      padding: 15px 0;
+    }
   </style>
 </head>
 
@@ -84,79 +89,113 @@
   <div class="container">
     <h1>Café Bill Calculator</h1>
 
-    <div class="item">
-      <div class="item-info">
-        <strong>Chicken Rice</strong>
-        <div class="price">$4.50</div>
-      </div>
-      <input type="number" id="chickenRice" min="0" value="0">
-    </div>
+    <div id="message">Loading menu...</div>
+    <div id="menu"></div>
 
-    <div class="item">
-      <div class="item-info">
-        <strong>Nasi Lemak</strong>
-        <div class="price">$4.00</div>
-      </div>
-      <input type="number" id="nasiLemak" min="0" value="0">
-    </div>
-
-    <div class="item">
-      <div class="item-info">
-        <strong>Laksa</strong>
-        <div class="price">$5.00</div>
-      </div>
-      <input type="number" id="laksa" min="0" value="0">
-    </div>
-
-    <div class="item">
-      <div class="item-info">
-        <strong>Kopi</strong>
-        <div class="price">$1.50</div>
-      </div>
-      <input type="number" id="kopi" min="0" value="0">
-    </div>
-
-    <div class="item">
-      <div class="item-info">
-        <strong>Teh</strong>
-        <div class="price">$1.30</div>
-      </div>
-      <input type="number" id="teh" min="0" value="0">
-    </div>
-
-    <div class="item">
-      <div class="item-info">
-        <strong>Milo</strong>
-        <div class="price">$2.00</div>
-      </div>
-      <input type="number" id="milo" min="0" value="0">
-    </div>
-
-    <button onclick="calculateBill()">Calculate Bill</button>
+    <button id="calculateButton" onclick="calculateBill()" disabled>
+      Calculate Bill
+    </button>
 
     <div id="total">Total: $0.00</div>
   </div>
 
   <script>
-    function getQuantity(id) {
-      const value = parseInt(document.getElementById(id).value, 10);
-      return Number.isFinite(value) && value > 0 ? value : 0;
+    let menuItems = [];
+
+    async function loadMenu() {
+      const message = document.getElementById("message");
+      const menuContainer = document.getElementById("menu");
+      const calculateButton = document.getElementById("calculateButton");
+
+      try {
+        const response = await fetch("menu.csv");
+
+        if (!response.ok) {
+          throw new Error("Could not load menu.csv");
+        }
+
+        const csvText = await response.text();
+        const lines = csvText.trim().split(/\r?\n/);
+
+        // Skip the header row.
+        menuItems = lines.slice(1)
+          .map(line => {
+            const [name, price] = line.split(",");
+
+            return {
+              name: name.trim(),
+              price: parseFloat(price.trim())
+            };
+          })
+          .filter(item =>
+            item.name &&
+            Number.isFinite(item.price)
+          );
+
+        if (menuItems.length === 0) {
+          throw new Error("No valid menu items found.");
+        }
+
+        menuContainer.innerHTML = "";
+
+        menuItems.forEach((item, index) => {
+          const itemElement = document.createElement("div");
+          itemElement.className = "item";
+
+          itemElement.innerHTML = `
+            <div class="item-info">
+              <strong>${escapeHtml(item.name)}</strong>
+              <div class="price">$${item.price.toFixed(2)}</div>
+            </div>
+
+            <input
+              type="number"
+              id="quantity-${index}"
+              min="0"
+              step="1"
+              value="0"
+              aria-label="Quantity for ${escapeHtml(item.name)}"
+            >
+          `;
+
+          menuContainer.appendChild(itemElement);
+        });
+
+        message.style.display = "none";
+        calculateButton.disabled = false;
+
+      } catch (error) {
+        message.textContent = "Unable to load the menu.";
+        console.error(error);
+      }
     }
 
     function calculateBill() {
-      const total =
-        getQuantity("chickenRice") * 4.50 +
-        getQuantity("nasiLemak") * 4.00 +
-        getQuantity("laksa") * 5.00 +
-        getQuantity("kopi") * 1.50 +
-        getQuantity("teh") * 1.30 +
-        getQuantity("milo") * 2.00;
+      let total = 0;
+
+      menuItems.forEach((item, index) => {
+        const input = document.getElementById(`quantity-${index}`);
+        let quantity = parseInt(input.value, 10);
+
+        if (!Number.isFinite(quantity) || quantity < 0) {
+          quantity = 0;
+        }
+
+        total += item.price * quantity;
+      });
 
       document.getElementById("total").textContent =
         "Total: $" + total.toFixed(2);
     }
+
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    loadMenu();
   </script>
 
 </body>
 </html>
-```
